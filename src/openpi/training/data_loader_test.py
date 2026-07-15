@@ -82,3 +82,34 @@ def test_with_real_dataset():
 
     for _, actions in batches:
         assert actions.shape == (config.batch_size, config.model.action_horizon, config.model.action_dim)
+
+
+def test_create_torch_dataset_passes_video_backend(monkeypatch):
+    captured = {}
+
+    class FakeMetadata:
+        fps = 30
+        tasks = {}
+
+        def __init__(self, repo_id):
+            captured["metadata_repo_id"] = repo_id
+
+    class FakeLeRobotDataset:
+        def __init__(self, repo_id, *, delta_timestamps, video_backend=None):
+            captured["repo_id"] = repo_id
+            captured["delta_timestamps"] = delta_timestamps
+            captured["video_backend"] = video_backend
+
+    monkeypatch.setattr(_data_loader.lerobot_dataset, "LeRobotDatasetMetadata", FakeMetadata)
+    monkeypatch.setattr(_data_loader.lerobot_dataset, "LeRobotDataset", FakeLeRobotDataset)
+
+    data_config = _config.DataConfig(repo_id="local/dataset", video_backend="pyav")
+    dataset = _data_loader.create_torch_dataset(
+        data_config,
+        action_horizon=2,
+        model_config=pi0_config.Pi0Config(action_horizon=2),
+    )
+
+    assert isinstance(dataset, FakeLeRobotDataset)
+    assert captured["repo_id"] == "local/dataset"
+    assert captured["video_backend"] == "pyav"

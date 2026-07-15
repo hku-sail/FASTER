@@ -131,12 +131,18 @@ class Pi0FasterConfig(_model.BaseModelConfig):
     mix_prob: float = 0.5
     alpha: float = 0.6
     u0: float = 0.9
+    training_mode: str = "standard"
+    block_size: int = 3
 
     def __post_init__(self):
         if self.max_token_len is None:
             object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
         if self.discrete_state_input is None:
             object.__setattr__(self, "discrete_state_input", self.pi05)
+        if self.training_mode not in ("standard", "block_causal_forcing"):
+            raise ValueError(f"Unknown training_mode: {self.training_mode}")
+        if self.block_size <= 0:
+            raise ValueError("block_size must be positive")
 
     @property
     @override

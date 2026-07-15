@@ -16,6 +16,9 @@ from openpi.shared import array_typing as at
 
 logger = logging.getLogger("openpi")
 
+STANDARD_TRAINING_MODE = "standard"
+BLOCK_CAUSAL_FORCING_MODE = "block_causal_forcing"
+
 
 def make_attn_mask(input_mask, mask_ar):
     """Adapted from big_vision.
@@ -43,6 +46,29 @@ def make_attn_mask(input_mask, mask_ar):
     attn_mask = cumsum[:, None, :] <= cumsum[:, :, None]
     valid_mask = input_mask[:, None, :] * input_mask[:, :, None]
     return jnp.logical_and(attn_mask, valid_mask)
+
+
+def make_block_causal_action_ar_mask(action_horizon: int, block_size: int) -> jax.Array:
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+    return (jnp.arange(action_horizon) % block_size) == 0
+
+
+def make_block_causal_action_mask(action_horizon: int, block_size: int) -> jax.Array:
+    ar_mask = make_block_causal_action_ar_mask(action_horizon, block_size)
+    input_mask = jnp.ones((1, action_horizon), dtype=jnp.bool_)
+    return make_attn_mask(input_mask, ar_mask)[0]
+
+
+def sample_block_timesteps(
+    rng: at.KeyArrayLike, batch_size: int, action_horizon: int, block_size: int
+) -> tuple[jax.Array, jax.Array]:
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+    num_blocks = (action_horizon + block_size - 1) // block_size
+    block_time = jax.random.beta(rng, 1.5, 1, (batch_size, num_blocks)) * 0.999 + 0.001
+    block_ids = jnp.arange(action_horizon) // block_size
+    return block_time[:, block_ids], block_time
 
 
 @at.typecheck
@@ -102,6 +128,9 @@ class Pi0Faster(_model.BaseModel):
         # This attribute gets automatically set by model.train() and model.eval().
         self.deterministic = True
         self.max_delay = config.max_delay
+        self.training_mode = config.training_mode
+        self.block_size = config.block_size
+        self.use_block_causal_forcing = self.training_mode == BLOCK_CAUSAL_FORCING_MODE
 
         self.mix_prob = config.mix_prob
         assert 0.0 <= self.mix_prob <= 1.0, "mix_prob must be in [0, 1]"
@@ -109,7 +138,10 @@ class Pi0Faster(_model.BaseModel):
         assert 0.0 <= self.alpha <= 1.0, "alpha must be in [0, 1]"
         self.u0 = config.u0
         assert 0.0 <= self.u0 <= 1.0, "u0 must be in [0, 1]"
-        print(f"mix_prob: {self.mix_prob}, alpha: {self.alpha}, u0: {self.u0}")
+        print(
+            f"mix_prob: {self.mix_prob}, alpha: {self.alpha}, u0: {self.u0}, "
+            f"training_mode: {self.training_mode}, block_size: {self.block_size}"
+        )
 
     @at.typecheck
     def embed_prefix(
@@ -193,16 +225,46 @@ class Pi0Faster(_model.BaseModel):
         tokens.append(action_expert_tokens)
         input_mask.append(jnp.ones(action_expert_tokens.shape[:2], dtype=jnp.bool_))
         # image/language/state inputs do not attend to action tokens
-        ar_mask += [True] + ([False] * (self.action_horizon - 1))
+        if self.use_block_causal_forcing:
+            ar_mask += [(i % self.block_size) == 0 for i in range(self.action_horizon)]
+        else:
+            ar_mask += [True] + ([False] * (self.action_horizon - 1))
         tokens = jnp.concatenate(tokens, axis=1)
         input_mask = jnp.concatenate(input_mask, axis=1)
         ar_mask = jnp.array(ar_mask)
         return tokens, input_mask, ar_mask, adarms_cond
 
+    def _compute_block_causal_forcing_loss(
+        self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
+    ) -> at.Float[at.Array, "*b ah"]:
+        preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
+        observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+
+        batch_size, action_horizon, _ = actions.shape
+        noise = jax.random.normal(noise_rng, actions.shape)
+        time, _ = sample_block_timesteps(time_rng, batch_size, action_horizon, self.block_size)
+        x_t = time[..., None] * noise + (1 - time[..., None]) * actions
+        u_t = noise - actions
+
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
+        input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
+        ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
+        attn_mask = make_attn_mask(input_mask, ar_mask)
+        positions = jnp.cumsum(input_mask, axis=1) - 1
+        (prefix_out, suffix_out), _ = self.PaliGemma.llm(
+            [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
+        )
+        v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
+        return jnp.mean(jnp.square(v_t - u_t), axis=-1)
+
     @override
     def compute_loss(
         self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
     ) -> at.Float[at.Array, "*b ah"]:
+        if self.use_block_causal_forcing:
+            return self._compute_block_causal_forcing_loss(rng, observation, actions, train=train)
+
         preprocess_rng, noise_rng, time_rng, delay_rng, type_rng = jax.random.split(rng, 5)
         observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
 
@@ -284,6 +346,9 @@ class Pi0Faster(_model.BaseModel):
         alpha: float = 1.0,
         u0: float = 0.9,
     ) -> _model.Actions:
+        if self.use_block_causal_forcing and infer_time_schedule != "const":
+            raise ValueError("block_causal_forcing currently supports only const inference schedule")
+
         observation = _model.preprocess_observation(None, observation, train=False)
         # note that we use the convention more common in diffusion literature, where t=1 is noise and t=0 is the target
         # distribution. yes, this is the opposite of the pi0 paper, and I'm sorry.
@@ -410,6 +475,9 @@ class Pi0Faster(_model.BaseModel):
         u0: float = 0.9,
     ):
         """Precomputes kv_cache and time schedules before streaming."""
+        if self.use_block_causal_forcing:
+            raise NotImplementedError("block_causal_forcing streaming inference is not implemented yet")
+
         observation = _model.preprocess_observation(None, observation, train=False)
         batch_size = observation.state.shape[0]
 

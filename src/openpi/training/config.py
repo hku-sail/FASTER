@@ -91,6 +91,8 @@ class DataConfig:
 
     # If true, will use the LeRobot dataset task to define the prompt.
     prompt_from_task: bool = False
+    # Video decoding backend passed to LeRobotDataset. Use "pyav" for AV1 videos when torchcodec is unsupported.
+    video_backend: str | None = None
 
     # Only used for RLDS data loader (ie currently only used for DROID).
     rlds_data_dir: str | None = None
@@ -860,7 +862,7 @@ _CONFIGS = [
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        pytorch_weight_path="/path/to/your/pytorch_weight_path",
+        pytorch_weight_path=None,
         num_train_steps=30_000,
         num_workers=8,
     ),
@@ -1102,12 +1104,28 @@ _CONFIGS = [
         name="pi05_agilex",
         model=pi0_config.Pi0Config(pi05=True),
         data=LeRobotAgilexDataConfig(
-            repo_id="your/dataset",
-            base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig(asset_id="asset"),
+            repo_id="/home/xhy/data/data_lerobot/PickupCub",
+            base_config=DataConfig(prompt_from_task=True, video_backend="pyav"),
+            assets=AssetsConfig(asset_id="PickupCub"),
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.front",
+                                "cam_left_wrist": "observation.images.left",
+                                "cam_right_wrist": "observation.images.right",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "prompt": "prompt",
+                        }
+                    )
+                ]
+            ),
         ),
-        batch_size=128,
-        num_workers=8,
+        batch_size=16,
+        num_workers=1,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=50_000,
         save_interval=10_000,
@@ -1130,9 +1148,55 @@ _CONFIGS = [
         name="pi05_faster_agilex",
         model=pi0_config.Pi0FasterConfig(pi05=True, max_delay=10, mix_prob=0.5, alpha=0.6, u0=0.9),
         data=LeRobotAgilexDataConfig(
-            repo_id="your/dataset",
+            repo_id="/home/xhy/data/data_lerobot/PickupCub",
             base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig(asset_id="asset"),
+            assets=AssetsConfig(asset_id="PickupCub"),
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.front",
+                                "cam_left_wrist": "observation.images.left",
+                                "cam_right_wrist": "observation.images.right",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "prompt": "prompt",
+                        }
+                    )
+                ]
+            ),
+        ),
+        batch_size=128,
+        num_workers=8,
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=50_000,
+        save_interval=10_000,
+    ),
+    TrainConfig(
+        name="pi05_block_causal_faster_agilex",
+        model=pi0_config.Pi0FasterConfig(pi05=True, training_mode="block_causal_forcing", block_size=3),
+        data=LeRobotAgilexDataConfig(
+            repo_id="/home/xhy/data/data_lerobot/PickupCub",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(asset_id="PickupCub"),
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.front",
+                                "cam_left_wrist": "observation.images.left",
+                                "cam_right_wrist": "observation.images.right",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "prompt": "prompt",
+                        }
+                    )
+                ]
+            ),
         ),
         batch_size=128,
         num_workers=8,
