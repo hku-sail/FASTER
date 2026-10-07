@@ -119,6 +119,8 @@
               <span class="author-block"><sup>1</sup>The University of Hong Kong <sup>2</sup>ACE Robotics</span>
             </div>
 
+            <div class="is-size-5 has-text-centered">NeurIPS 2026</div>
+
             <div class="has-text-centered">
               <div class="publication-links">
                 <!-- ArXiv abstract Link -->
@@ -134,7 +136,7 @@
 
                 <!-- Github link -->
                 <span class="link-block">
-                  <a href="https://github.com/innovator-zero/FASTER" target="_blank" rel="noopener noreferrer"
+                  <a href="https://github.com/hku-sail/FASTER" target="_blank" rel="noopener noreferrer"
                     class="external-link button is-normal is-rounded is-dark">
                     <span class="icon github-icon" aria-hidden="true">
                       <svg viewBox="0 0 16 16" width="1em" height="1em" fill="currentColor">
@@ -857,14 +859,14 @@
           effective balance between responsiveness and accuracy.
         </p>
       </div>
-           
-  <section class="section" id="BibTeX">
-    <div class="container is-max-desktop content">
-      <div class="citation-header">
-        <h2 class="title">Citation</h2>
-        <button class="copy-citation-button" type="button" data-copy-target="citation-bibtex">Copy</button>
-      </div>
-      <pre><code id="citation-bibtex">
+
+      <section class="section" id="BibTeX">
+        <div class="container is-max-desktop content">
+          <div class="citation-header">
+            <h2 class="title">Citation</h2>
+            <button class="copy-citation-button" type="button" data-copy-target="citation-bibtex">Copy</button>
+          </div>
+          <pre><code id="citation-bibtex">
 @article{lu2026faster,
   title={FASTER: Rethinking Real-Time Flow VLAs}, 
   author={Yuxiang Lu and Zhe Liu and Xianzhe Fan and Zhenya Yang and Jinghua Hou and Junyi Li and Kaixin Ding and Hengshuang Zhao},
@@ -872,84 +874,86 @@
   journal={arXiv preprint arXiv:2603.19199}
 }
       </code></pre>
-    </div>
-  </section>
+        </div>
+      </section>
 
-  <footer class="footer">
-    <div class="container">
-      <div class="columns is-centered">
-        <div class="column is-8">
-          <div class="content">
-            <p>
-              This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template"
-                target="_blank" rel="noopener noreferrer">Academic Project Page Template</a> which was adopted from
-              the <a href="https://nerfies.github.io" target="_blank" rel="noopener noreferrer">Nerfies</a> project
-              page.
-              <br> This website is licensed under a <a rel="license"
-                href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">Creative
-                Commons
-                Attribution-ShareAlike 4.0 International License</a>.
-            </p>
+      <footer class="footer">
+        <div class="container">
+          <div class="columns is-centered">
+            <div class="column is-8">
+              <div class="content">
+                <p>
+                  This page was built using the <a
+                    href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank"
+                    rel="noopener noreferrer">Academic Project Page Template</a> which was adopted from
+                  the <a href="https://nerfies.github.io" target="_blank" rel="noopener noreferrer">Nerfies</a> project
+                  page.
+                  <br> This website is licensed under a <a rel="license"
+                    href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank"
+                    rel="noopener noreferrer">Creative
+                    Commons
+                    Attribution-ShareAlike 4.0 International License</a>.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  </footer>
+      </footer>
 
-  <script src="static/js/index.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      var copyButton = document.querySelector('[data-copy-target="citation-bibtex"]');
-      var citationBlock = document.getElementById('citation-bibtex');
+      <script src="static/js/index.js"></script>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          var copyButton = document.querySelector('[data-copy-target="citation-bibtex"]');
+          var citationBlock = document.getElementById('citation-bibtex');
 
-      if (!copyButton || !citationBlock) {
-        return;
-      }
-
-      var defaultLabel = 'Copy';
-      var copiedLabel = 'Copied!';
-      var resetTimer;
-
-      function updateButtonLabel(label, copied) {
-        copyButton.textContent = label;
-        copyButton.classList.toggle('is-copied', copied);
-      }
-
-      async function copyCitation() {
-        var citationText = citationBlock.textContent.replace(/^\s+|\s+$/g, '');
-
-        try {
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(citationText);
-          } else {
-            var textArea = document.createElement('textarea');
-            textArea.value = citationText;
-            textArea.setAttribute('readonly', '');
-            textArea.style.position = 'absolute';
-            textArea.style.left = '-9999px';
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
+          if (!copyButton || !citationBlock) {
+            return;
           }
 
-          updateButtonLabel(copiedLabel, true);
-          window.clearTimeout(resetTimer);
-          resetTimer = window.setTimeout(function () {
-            updateButtonLabel(defaultLabel, false);
-          }, 1800);
-        } catch (error) {
-          updateButtonLabel('Failed', false);
-          window.clearTimeout(resetTimer);
-          resetTimer = window.setTimeout(function () {
-            updateButtonLabel(defaultLabel, false);
-          }, 1800);
-        }
-      }
+          var defaultLabel = 'Copy';
+          var copiedLabel = 'Copied!';
+          var resetTimer;
 
-      copyButton.addEventListener('click', copyCitation);
-    });
-  </script>
+          function updateButtonLabel(label, copied) {
+            copyButton.textContent = label;
+            copyButton.classList.toggle('is-copied', copied);
+          }
+
+          async function copyCitation() {
+            var citationText = citationBlock.textContent.replace(/^\s+|\s+$/g, '');
+
+            try {
+              if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(citationText);
+              } else {
+                var textArea = document.createElement('textarea');
+                textArea.value = citationText;
+                textArea.setAttribute('readonly', '');
+                textArea.style.position = 'absolute';
+                textArea.style.left = '-9999px';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+              }
+
+              updateButtonLabel(copiedLabel, true);
+              window.clearTimeout(resetTimer);
+              resetTimer = window.setTimeout(function () {
+                updateButtonLabel(defaultLabel, false);
+              }, 1800);
+            } catch (error) {
+              updateButtonLabel('Failed', false);
+              window.clearTimeout(resetTimer);
+              resetTimer = window.setTimeout(function () {
+                updateButtonLabel(defaultLabel, false);
+              }, 1800);
+            }
+          }
+
+          copyButton.addEventListener('click', copyCitation);
+        });
+      </script>
 </body>
 
 </html>
